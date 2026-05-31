@@ -1,0 +1,8 @@
+program assert_after_array_write_probe.aleo;
+
+function main:
+    cast 0u8 0u8 into r0 as [u8; 2u32];
+    assert.eq r0 r0;
+    output 1u8 as u8.private;
+status: success
+output: 1u8
