@@ -1,0 +1,6 @@
+program inclusive_loop_singleton_probe.aleo;
+
+function main:
+    output 0u8 as u8.private;
+status: success
+output: 0u8
