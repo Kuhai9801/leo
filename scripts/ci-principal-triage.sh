@@ -3,7 +3,7 @@ set -u -o pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORK="$ROOT/target/triage-repro"
-LEO=(cargo run -p leo --locked --features only_testnet --)
+LEO=(cargo run -p leo-lang --bin leo --locked --features only_testnet --)
 
 rm -rf "$WORK"
 mkdir -p "$WORK"
