@@ -1,0 +1,22 @@
+name: Dynamic Ternary Repro
+
+on:
+  push:
+    branches:
+      - dynamic-ternary-call-repro
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repro:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Reproduce ternary dynamic call lowering
+        run: bash scripts/repro-dynamic-ternary.sh
