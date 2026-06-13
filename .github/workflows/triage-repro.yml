@@ -1,0 +1,24 @@
+name: Triage Repro
+
+on:
+  push:
+    branches:
+      - leo-principal-triage-ci
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repro:
+    runs-on: ubuntu-latest
+    env:
+      RUST_BACKTRACE: 1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run CI repro probes
+        run: bash scripts/ci-principal-triage.sh
