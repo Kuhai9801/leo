@@ -25,14 +25,20 @@ program dyn_ternary_issue.aleo {
 LEO
 
 cd dyn_ternary_issue
-"${LEO[@]}" build
-echo "Generated call.dynamic and ternary instructions:"
-grep -n 'call.dynamic\|ternary' build/dyn_ternary_issue/dyn_ternary_issue.aleo
+set +e
+build_output="$("${LEO[@]}" build 2>&1)"
+build_status=$?
+set -e
 
-call_count="$(grep -c 'call.dynamic' build/dyn_ternary_issue/dyn_ternary_issue.aleo)"
-if [[ "$call_count" -ne 2 ]]; then
-  echo "Expected exactly two unconditional call.dynamic instructions, found $call_count" >&2
+printf '%s\n' "$build_output"
+if [[ "$build_status" -eq 0 ]]; then
+  echo "Expected dynamic calls in ternary arms to be rejected, but build succeeded" >&2
   exit 1
 fi
 
-echo "DYNAMIC_TERNARY_REPRO_CONFIRMED"
+if ! grep -q 'dynamic calls cannot be used inside a conditional branch' <<<"$build_output"; then
+  echo "Expected conditional dynamic-call diagnostic was not emitted" >&2
+  exit 1
+fi
+
+echo "DYNAMIC_TERNARY_REJECTION_CONFIRMED"
