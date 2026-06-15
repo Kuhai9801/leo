@@ -18,5 +18,7 @@ jobs:
           submodules: true
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: Run compiler regression
+        run: TEST_FILTER=dynamic_call_in_ternary cargo test -p leo-compiler test_compiler --locked
       - name: Reproduce ternary dynamic call lowering
         run: bash scripts/repro-dynamic-ternary.sh
