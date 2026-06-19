@@ -33,6 +33,13 @@ elseif_out="$ROOT/opt_else_if_hoist.out"
 elseif_status=$?
 show_output "$elseif_out"
 
+elseif_build_out="$ROOT/opt_else_if_hoist_build.out"
+(cd "$ROOT/opt_else_if_hoist" && run_cmd "$elseif_build_out" "$LEO_BIN" build --enable-all-ast-snapshots)
+show_output "$elseif_build_out"
+show_project_files opt_else_if_hoist
+show_project_matches opt_else_if_hoist 'missing|unwrap|is_some|assert|if take_first|else if|return|option|lowering|\.aleo'
+copy_project_evidence opt_else_if_hoist
+
 log "else-block control"
 new_project opt_else_block_ctrl
 write_main opt_else_block_ctrl <<'LEO'
@@ -61,8 +68,15 @@ elseblock_out="$ROOT/opt_else_block_ctrl.out"
 elseblock_status=$?
 show_output "$elseblock_out"
 
+elseblock_build_out="$ROOT/opt_else_block_ctrl_build.out"
+(cd "$ROOT/opt_else_block_ctrl" && run_cmd "$elseblock_build_out" "$LEO_BIN" build --enable-all-ast-snapshots)
+show_output "$elseblock_build_out"
+show_project_files opt_else_block_ctrl
+show_project_matches opt_else_block_ctrl 'missing|unwrap|is_some|assert|if take_first|return|option|lowering|\.aleo'
+copy_project_evidence opt_else_block_ctrl
+
 if [ "$elseif_status" -ne 0 ] && [ "$elseblock_status" -eq 0 ] && grep -q '1u8' "$elseblock_out"; then
-  result option_else_if_unwrap confirmed "else-if fails while equivalent else-block returns 1u8"
+  result option_else_if_unwrap confirmed "else-if fails while else-block spelling returns 1u8; artifacts/snapshots uploaded"
 elif [ "$elseif_status" -ne 0 ] && [ "$elseblock_status" -ne 0 ]; then
   result option_else_if_unwrap downgraded "both spellings fail; not an else-if-specific placement delta"
 elif [ "$elseif_status" -eq 0 ] && grep -q '1u8' "$elseif_out"; then

@@ -52,7 +52,7 @@ jobs:
       - name: Run inclusive loop repro
         run: |
           chmod +x .ci-bin/leo
-          LEO_BIN="$PWD/.ci-bin/leo" scripts/audit-repros/inclusive_loop_eq.sh | tee inclusive_loop_eq.txt
+          LEO_BIN="$PWD/.ci-bin/leo" ARTIFACT_DIR="$PWD/inclusive_loop_eq_evidence" scripts/audit-repros/inclusive_loop_eq.sh | tee inclusive_loop_eq.txt
       - name: Add summary
         if: always()
         run: scripts/audit-repros/summary.sh inclusive_loop_eq.txt >> "$GITHUB_STEP_SUMMARY"
@@ -61,7 +61,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: inclusive-loop-eq-result
-          path: inclusive_loop_eq.txt
+          path: |
+            inclusive_loop_eq.txt
+            inclusive_loop_eq_evidence
           if-no-files-found: warn
 
   const-ternary-fallible:
@@ -78,7 +80,7 @@ jobs:
       - name: Run constant ternary repro
         run: |
           chmod +x .ci-bin/leo
-          LEO_BIN="$PWD/.ci-bin/leo" scripts/audit-repros/const_ternary_fallible.sh | tee const_ternary_fallible.txt
+          LEO_BIN="$PWD/.ci-bin/leo" ARTIFACT_DIR="$PWD/const_ternary_fallible_evidence" scripts/audit-repros/const_ternary_fallible.sh | tee const_ternary_fallible.txt
       - name: Add summary
         if: always()
         run: scripts/audit-repros/summary.sh const_ternary_fallible.txt >> "$GITHUB_STEP_SUMMARY"
@@ -87,7 +89,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: const-ternary-fallible-result
-          path: const_ternary_fallible.txt
+          path: |
+            const_ternary_fallible.txt
+            const_ternary_fallible_evidence
           if-no-files-found: warn
 
   dce-dynamic-array-index:
@@ -104,7 +108,7 @@ jobs:
       - name: Run dynamic array index repro
         run: |
           chmod +x .ci-bin/leo
-          LEO_BIN="$PWD/.ci-bin/leo" scripts/audit-repros/dce_dynamic_array_index.sh | tee dce_dynamic_array_index.txt
+          LEO_BIN="$PWD/.ci-bin/leo" ARTIFACT_DIR="$PWD/dce_dynamic_array_index_evidence" scripts/audit-repros/dce_dynamic_array_index.sh | tee dce_dynamic_array_index.txt
       - name: Add summary
         if: always()
         run: scripts/audit-repros/summary.sh dce_dynamic_array_index.txt >> "$GITHUB_STEP_SUMMARY"
@@ -113,7 +117,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: dce-dynamic-array-index-result
-          path: dce_dynamic_array_index.txt
+          path: |
+            dce_dynamic_array_index.txt
+            dce_dynamic_array_index_evidence
           if-no-files-found: warn
 
   option-else-if-unwrap:
@@ -130,7 +136,7 @@ jobs:
       - name: Run option else-if unwrap repro
         run: |
           chmod +x .ci-bin/leo
-          LEO_BIN="$PWD/.ci-bin/leo" scripts/audit-repros/option_else_if_unwrap.sh | tee option_else_if_unwrap.txt
+          LEO_BIN="$PWD/.ci-bin/leo" ARTIFACT_DIR="$PWD/option_else_if_unwrap_evidence" scripts/audit-repros/option_else_if_unwrap.sh | tee option_else_if_unwrap.txt
       - name: Add summary
         if: always()
         run: scripts/audit-repros/summary.sh option_else_if_unwrap.txt >> "$GITHUB_STEP_SUMMARY"
@@ -139,5 +145,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: option-else-if-unwrap-result
-          path: option_else_if_unwrap.txt
+          path: |
+            option_else_if_unwrap.txt
+            option_else_if_unwrap_evidence
           if-no-files-found: warn
