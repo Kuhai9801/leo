@@ -1,0 +1,39 @@
+name: Leo 29343 PR3 Expectation Generation
+
+on:
+  push:
+    branches:
+      - ci/leo-29343-pr3-generate-v1
+
+permissions:
+  contents: read
+
+jobs:
+  generate-expectation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.96.0
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install libclang
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libclang-dev
+
+      - name: Update submodules
+        run: git submodule update --init --recursive
+
+      - name: Generate nested ternary expectation
+        env:
+          TEST_FILTER: ssa_const_propagation/nested_ternary_absorption
+          UPDATE_EXPECT: 1
+        run: cargo test -p leo-passes test_passes --locked -- --nocapture
+
+      - name: Print generated expectation
+        run: |
+          sed -n '1,220p' tests/expectations/passes/ssa_const_propagation/nested_ternary_absorption.out
