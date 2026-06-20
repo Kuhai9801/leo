@@ -31,6 +31,20 @@ use indexmap::IndexMap;
 
 const VALUE_ERROR: &str = "A non-future value should always be able to be converted into an expression";
 
+fn atom_field_from_composite(composite: &CompositeExpression, field: Symbol) -> Option<Expression> {
+    let mut field_atom = None;
+    for member in &composite.members {
+        let expr = member.expression.as_ref()?;
+        if !is_atom(expr) {
+            return None;
+        }
+        if member.identifier.name == field {
+            field_atom = Some(expr.clone());
+        }
+    }
+    field_atom
+}
+
 impl AstReconstructor for SsaConstPropagationVisitor<'_> {
     type AdditionalInput = ();
     type AdditionalOutput = Option<Value>;
@@ -68,26 +82,31 @@ impl AstReconstructor for SsaConstPropagationVisitor<'_> {
         let (inner, _) = self.reconstruct_expression(input.inner, &());
         input.inner = inner;
 
-        if let Expression::Path(path) = &input.inner
-            && let Some(name) = path.try_local_symbol()
-            && let Some(fields) = self.atom_fielded_composites.get(&name)
-            && let Some(atom) = fields.get(&input.name.name)
-        {
+        let atom = match &input.inner {
+            Expression::Path(path) => path
+                .try_local_symbol()
+                .and_then(|name| self.atom_fielded_composites.get(&name))
+                .and_then(|fields| fields.get(&input.name.name))
+                .cloned(),
+            Expression::Composite(composite) => atom_field_from_composite(composite, input.name.name),
+            _ => None,
+        };
+
+        if let Some(atom) = atom {
             self.changed = true;
             // Recompute the atom's Value so downstream folding sees the forwarded
             // constant (literals evaluate directly; paths look up tracked constants).
-            let opt_value = match atom {
+            let opt_value = match &atom {
                 Expression::Literal(lit) => {
                     let ty = self.state.type_table.get(&lit.id());
                     const_eval::literal_to_value(lit, &ty).ok()
                 }
                 Expression::Path(p) => p.try_local_symbol().and_then(|s| self.constants.get(&s).cloned()),
-                // Unreachable: `reconstruct_definition` only populates
-                // `atom_fielded_composites` with fields passing `is_atom`,
-                // which restricts to `Path`/`Literal`.
+                // Unreachable: Both composite sources are filtered through
+                // `is_atom`, which restricts fields to `Path`/`Literal`.
                 _ => unreachable!("atom_fielded_composites fields must be Path or Literal"),
             };
-            return (atom.clone(), opt_value);
+            return (atom, opt_value);
         }
 
         (input.into(), None)
