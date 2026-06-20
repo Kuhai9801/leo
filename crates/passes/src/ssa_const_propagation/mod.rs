@@ -50,6 +50,7 @@ impl Pass for SsaConstPropagation {
                 program: Symbol::intern(""),
                 constants: Default::default(),
                 atom_fielded_composites: Default::default(),
+                ternaries: Default::default(),
                 changed: false,
             };
 

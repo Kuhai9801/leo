@@ -18,7 +18,7 @@ use crate::expression_can_be_discarded;
 
 use super::{
     SsaConstPropagationVisitor,
-    visitor::{is_atom, is_one_literal, is_zero_literal, same_ssa_atom},
+    visitor::{is_atom, is_one_literal, is_zero_literal, same_atom_value, same_ssa_atom},
 };
 
 use leo_ast::{
@@ -31,18 +31,53 @@ use indexmap::IndexMap;
 
 const VALUE_ERROR: &str = "A non-future value should always be able to be converted into an expression";
 
-fn atom_field_from_composite(composite: &CompositeExpression, field: Symbol) -> Option<Expression> {
-    let mut field_atom = None;
+fn atom_fields_from_composite(composite: &CompositeExpression) -> Option<IndexMap<Symbol, Expression>> {
+    let mut fields = IndexMap::with_capacity(composite.members.len());
     for member in &composite.members {
         let expr = member.expression.as_ref()?;
         if !is_atom(expr) {
             return None;
         }
-        if member.identifier.name == field {
-            field_atom = Some(expr.clone());
-        }
+        fields.insert(member.identifier.name, expr.clone());
     }
-    field_atom
+    Some(fields)
+}
+
+fn atom_fields_from_cast(
+    visitor: &SsaConstPropagationVisitor<'_>,
+    cast: &CastExpression,
+) -> Option<IndexMap<Symbol, Expression>> {
+    let Type::Composite(composite_type) = &cast.type_ else {
+        return None;
+    };
+    let Expression::Tuple(tuple) = &cast.expression else {
+        return None;
+    };
+    let composite_location = composite_type.path.expect_global_location();
+    let composite = visitor.state.symbol_table.lookup_struct(visitor.program, composite_location)?;
+    if tuple.elements.len() != composite.members.len() {
+        return None;
+    }
+
+    let mut fields = IndexMap::with_capacity(tuple.elements.len());
+    for (member, expr) in composite.members.iter().zip(&tuple.elements) {
+        if !is_atom(expr) {
+            return None;
+        }
+        fields.insert(member.identifier.name, expr.clone());
+    }
+    Some(fields)
+}
+
+fn atom_fields_from_expression(
+    visitor: &SsaConstPropagationVisitor<'_>,
+    expr: &Expression,
+) -> Option<IndexMap<Symbol, Expression>> {
+    match expr {
+        Expression::Composite(composite) => atom_fields_from_composite(composite),
+        Expression::Cast(cast) => atom_fields_from_cast(visitor, cast),
+        _ => None,
+    }
 }
 
 impl AstReconstructor for SsaConstPropagationVisitor<'_> {
@@ -88,8 +123,7 @@ impl AstReconstructor for SsaConstPropagationVisitor<'_> {
                 .and_then(|name| self.atom_fielded_composites.get(&name))
                 .and_then(|fields| fields.get(&input.name.name))
                 .cloned(),
-            Expression::Composite(composite) => atom_field_from_composite(composite, input.name.name),
-            _ => None,
+            expr => atom_fields_from_expression(self, expr).and_then(|fields| fields.get(&input.name.name).cloned()),
         };
 
         if let Some(atom) = atom {
@@ -453,6 +487,26 @@ impl AstReconstructor for SsaConstPropagationVisitor<'_> {
                     return (if_true, if_true_value);
                 }
 
+                if let Expression::Path(path) = &if_true
+                    && let Some((inner_cond, _, inner_false)) =
+                        path.try_local_symbol().and_then(|name| self.ternaries.get(&name))
+                    && same_atom_value(&cond, inner_cond)
+                    && same_atom_value(&if_false, inner_false)
+                {
+                    self.changed = true;
+                    return (if_true, if_true_value);
+                }
+
+                if let Expression::Path(path) = &if_false
+                    && let Some((inner_cond, inner_true, _)) =
+                        path.try_local_symbol().and_then(|name| self.ternaries.get(&name))
+                    && same_atom_value(&cond, inner_cond)
+                    && same_atom_value(&if_true, inner_true)
+                {
+                    self.changed = true;
+                    return (if_false, if_false_value);
+                }
+
                 (TernaryExpression { condition: cond, if_true, if_false, ..input }.into(), None)
             }
         }
@@ -573,22 +627,20 @@ impl AstReconstructor for SsaConstPropagationVisitor<'_> {
                     }
                 }
             }
-        } else if let (DefinitionPlace::Single(identifier), Expression::Composite(composite)) =
-            (&input.place, &new_value)
-        {
-            // Only track when every field initializer is an atom, since the field
-            // expression will be cloned into every forwarded use-site.
-            let mut fields: IndexMap<Symbol, Expression> = IndexMap::with_capacity(composite.members.len());
-            let all_atoms = composite.members.iter().all(|member| {
-                let Some(expr) = &member.expression else { return false };
-                if !is_atom(expr) {
-                    return false;
-                }
-                fields.insert(member.identifier.name, expr.clone());
-                true
-            });
-            if all_atoms {
+        } else if let DefinitionPlace::Single(identifier) = &input.place {
+            if let Some(fields) = atom_fields_from_expression(self, &new_value) {
                 self.atom_fielded_composites.insert(identifier.name, fields);
+            }
+
+            if let Expression::Ternary(ternary) = &new_value
+                && is_atom(&ternary.condition)
+                && is_atom(&ternary.if_true)
+                && is_atom(&ternary.if_false)
+            {
+                self.ternaries.insert(
+                    identifier.name,
+                    (ternary.condition.clone(), ternary.if_true.clone(), ternary.if_false.clone()),
+                );
             }
         }
 

@@ -35,6 +35,9 @@ pub struct SsaConstPropagationVisitor<'a> {
     /// Used to forward `x.field` to the stored atom without rematerializing
     /// the enclosing struct — effectively scalarizing short-lived aggregates.
     pub atom_fielded_composites: IndexMap<Symbol, IndexMap<Symbol, Expression>>,
+    /// Maps variable names bound to atom-only ternary expressions to their
+    /// condition, true branch, and false branch.
+    pub ternaries: IndexMap<Symbol, (Expression, Expression, Expression)>,
     /// Have we actually modified the program at all?
     pub changed: bool,
 }
@@ -87,6 +90,14 @@ pub fn same_ssa_atom(a: &Expression, b: &Expression) -> bool {
             sa == sb && sa.is_some()
         }
         _ => false,
+    }
+}
+
+/// Check if two atom expressions are known to have the same value.
+pub fn same_atom_value(a: &Expression, b: &Expression) -> bool {
+    match (a, b) {
+        (Expression::Literal(a), Expression::Literal(b)) => a.variant == b.variant,
+        _ => same_ssa_atom(a, b),
     }
 }
 
