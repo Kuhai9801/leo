@@ -19,7 +19,7 @@ program test.aleo {
         let s$#8 = test.aleo::Pair { a: p$$6, b: q$$7 };
         let $var$9 = p$$6;
         let $var$10 = q$$7;
-        let $var$11 = $var$9 + $var$10;
+        let $var$11 = p$$6 + q$$7;
         return $var$11;
     }
 }
