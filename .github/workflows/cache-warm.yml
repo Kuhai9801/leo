@@ -33,7 +33,7 @@ jobs:
             target: x86_64-unknown-linux-musl
             docker-musl: "true"
           - name: macos-x86
-            os: macos-14-large
+            os: macos-15-intel
             cache-key: leo-release-macos-x86
             crate-cache-key: leo-release-crate-x86_64-apple-darwin
             target: ""
@@ -114,6 +114,7 @@ jobs:
               apt-get update -qq && apt-get install -y libclang-dev &&
               rustup target add x86_64-unknown-linux-musl &&
               cd /home/rust/src &&
+              export TARGET_CXXFLAGS=\"\$TARGET_CXXFLAGS -include cstdint\" &&
               cargo build --target x86_64-unknown-linux-musl --release --locked --package leo-lang --features noconfig
             "
           sudo chown -R "$(id -u):$(id -g)" target
