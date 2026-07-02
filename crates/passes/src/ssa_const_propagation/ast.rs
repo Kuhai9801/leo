@@ -18,7 +18,7 @@ use crate::expression_can_be_discarded;
 
 use super::{
     SsaConstPropagationVisitor,
-    visitor::{is_atom, is_one_literal, is_zero_literal, same_ssa_atom},
+    visitor::{is_atom, is_one_literal, is_zero_literal, optional_composite_atoms, same_ssa_atom},
 };
 
 use leo_ast::{
@@ -58,7 +58,7 @@ impl AstReconstructor for SsaConstPropagationVisitor<'_> {
     /// Reconstruct a member access. If the inner expression is a local path whose
     /// binding was built from a composite literal with atom-valued fields, forward
     /// the access directly to the stored atom. This is scalar replacement of
-    /// aggregates for short-lived struct values — the struct itself is left for
+    /// aggregates for short-lived struct values - the struct itself is left for
     /// dead-code elimination to remove once all field accesses are forwarded.
     fn reconstruct_member_access(
         &mut self,
@@ -68,15 +68,13 @@ impl AstReconstructor for SsaConstPropagationVisitor<'_> {
         let (inner, _) = self.reconstruct_expression(input.inner, &());
         input.inner = inner;
 
-        if let Expression::Path(path) = &input.inner
-            && let Some(name) = path.try_local_symbol()
-            && let Some(fields) = self.atom_fielded_composites.get(&name)
-            && let Some(atom) = fields.get(&input.name.name)
+        if (self.forwards_composite_members() || self.tracks_optional_unwraps())
+            && let Some((_, atom)) = self.atom_for_composite_member(&input.inner, input.name.name)
         {
             self.changed = true;
             // Recompute the atom's Value so downstream folding sees the forwarded
             // constant (literals evaluate directly; paths look up tracked constants).
-            let opt_value = match atom {
+            let opt_value = match &atom {
                 Expression::Literal(lit) => {
                     let ty = self.state.type_table.get(&lit.id());
                     const_eval::literal_to_value(lit, &ty).ok()
@@ -87,7 +85,7 @@ impl AstReconstructor for SsaConstPropagationVisitor<'_> {
                 // which restricts to `Path`/`Literal`.
                 _ => unreachable!("atom_fielded_composites fields must be Path or Literal"),
             };
-            return (atom.clone(), opt_value);
+            return (atom, opt_value);
         }
 
         (input.into(), None)
@@ -554,8 +552,8 @@ impl AstReconstructor for SsaConstPropagationVisitor<'_> {
                     }
                 }
             }
-        } else if let (DefinitionPlace::Single(identifier), Expression::Composite(composite)) =
-            (&input.place, &new_value)
+        } else if self.forwards_composite_members()
+            && let (DefinitionPlace::Single(identifier), Expression::Composite(composite)) = (&input.place, &new_value)
         {
             // Only track when every field initializer is an atom, since the field
             // expression will be cloned into every forwarded use-site.
@@ -571,6 +569,31 @@ impl AstReconstructor for SsaConstPropagationVisitor<'_> {
             if all_atoms {
                 self.atom_fielded_composites.insert(identifier.name, fields);
             }
+        } else if self.tracks_optional_unwraps()
+            && let (DefinitionPlace::Single(identifier), Expression::Composite(composite)) = (&input.place, &new_value)
+            && let Some(fields) = optional_composite_atoms(composite)
+        {
+            self.atom_fielded_composites.insert(identifier.name, fields);
+        } else if self.tracks_optional_unwraps()
+            && let (DefinitionPlace::Single(identifier), Expression::Cast(cast)) = (&input.place, &new_value)
+            && self.is_optional_wrapper_type(&cast.type_)
+            && let Expression::Tuple(tuple) = &cast.expression
+            && let [is_some, val] = tuple.elements.as_slice()
+            && is_atom(is_some)
+            && is_atom(val)
+        {
+            self.atom_fielded_composites.insert(
+                identifier.name,
+                IndexMap::from([(Symbol::intern("is_some"), is_some.clone()), (Symbol::intern("val"), val.clone())]),
+            );
+        }
+
+        if self.tracks_optional_unwraps()
+            && let (DefinitionPlace::Single(identifier), Expression::Path(path)) = (&input.place, &new_value)
+            && let Some(alias) = path.try_local_symbol().map(|name| self.resolve_composite_alias(name))
+            && self.atom_fielded_composites.contains_key(&alias)
+        {
+            self.aliases.insert(identifier.name, alias);
         }
 
         input.value = new_value;
